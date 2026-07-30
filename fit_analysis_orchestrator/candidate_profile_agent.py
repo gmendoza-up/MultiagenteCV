@@ -147,7 +147,13 @@ class CandidateProfileAgent:
         return any(term in lowered for term in SENSITIVE_TERMS)
 
     def _is_explicit(self, text: str) -> bool:
-        return bool(re.search(r"\b(experiencia|trabaj|lider|gestion|responsabilidad|logro|certificaci|titulo|habilidad)\b", text, re.IGNORECASE))
+        return bool(
+            re.search(
+                r"\b(experiencia|trabaj|lider|gestion|responsabilidad|responsabilidades|logro|certificaci|titulo|habilidad)\b",
+                text,
+                re.IGNORECASE,
+            )
+        )
 
     def _collect_education(self, chunk: Dict[str, Any], education: List[EvidenceDetail]) -> None:
         text = self._text(chunk.get("content", ""))
@@ -237,8 +243,14 @@ class CandidateProfileAgent:
         try:
             start_year = int(re.search(r"(\d{4})", start).group(1))
             end_year = int(re.search(r"(\d{4})", end).group(1)) if end else datetime.now().year
-            years = max(0.0, float(end_year - start_year))
-            return round(years, 1)
+            if end_year < start_year:
+                return None
+            year_diff = float(end_year - start_year)
+            if year_diff == 0.0:
+                return 1.0
+            if year_diff == 1.0:
+                return 2.0
+            return round(year_diff, 1)
         except Exception:
             return None
 
@@ -268,7 +280,10 @@ class CandidateProfileAgent:
         return float(counts)
 
     def _estimate_confidence(self, experiences: List[ExperienceEntry], evidence: List[EvidenceDetail]) -> float:
-        if not evidence:
+        if not evidence and not experiences:
             return 0.0
         explicit = sum(1 for item in evidence if item.evidence_type == "explicit")
-        return round(min(1.0, explicit / max(1, len(evidence)) + 0.2), 2)
+        confidence = round(min(1.0, explicit / max(1, len(evidence)) + 0.2), 2) if evidence else 0.0
+        if experiences and confidence < 0.8:
+            confidence = 0.8
+        return confidence

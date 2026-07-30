@@ -16,6 +16,7 @@ from .models import (
     CandidateSource,
     FitAnalysisResult,
     FitAssessment,
+    RequirementAssessment,
     RoleDescriptor,
     SupervisorResult,
     TraceEntry,
@@ -109,9 +110,24 @@ class CandidateProfileAgent:
         start = current_time()
         await asyncio.sleep(0)
         profile = CandidateProfile(
+            candidate_id=candidate.candidate_id,
+            candidate_name=candidate.name,
             summary=f"Perfil sintetizado de {candidate.name}",
+            professional_summary=f"Perfil sintetizado de {candidate.name}",
+            experiences=[],
+            skills=[],
+            technologies=[],
+            education=[],
+            certifications=[],
+            languages=[],
+            total_years_experience=3.0,
+            domain_experience=[],
+            evidence=[],
+            confidence=0.8,
             experience_years=3,
-            matched_skills=[skill for skill in ["Python", "SQL", "Comunicación"] if skill.lower() in role.description_text.lower() or skill == "Python"],
+            matched_skills=[
+                skill for skill in ["Python", "SQL", "Comunicación"] if skill.lower() in role.description_text.lower() or skill == "Python"
+            ],
         )
         latency = elapsed_ms(start, current_time())
         tokens = 12
@@ -122,13 +138,36 @@ class FitAssessmentAgent:
     async def execute(self, profile: CandidateProfile, weights: WeightConfig) -> Tuple[FitAssessment, int]:
         start = current_time()
         await asyncio.sleep(0)
-        score = 75.0 + len(profile.matched_skills) * 5.0
-        if weights.weights:
-            score = min(100.0, score + sum(weights.weights.values()) * 2.0)
+        base_score = 75.0 + len(profile.matched_skills) * 5.0
+        weight_bonus = sum(weights.weights.values()) * 0.2 if weights.weights else 0.0
+        fit_percentage = min(100.0, base_score + weight_bonus)
+        mandatory_fit = min(100.0, fit_percentage * 0.7)
+        desirable_fit = min(100.0, fit_percentage * 0.3)
         assessment = FitAssessment(
-            score=round(score, 1),
-            strengths=["Experiencia técnica relevante", "Buen ajuste cultural"],
-            weaknesses=["Necesita profundizar dominio específico"],
+            candidate_id=profile.candidate_id,
+            fit_percentage=round(fit_percentage, 1),
+            fit_level="high" if fit_percentage >= 75 else "medium" if fit_percentage >= 45 else "low",
+            mandatory_fit=round(mandatory_fit, 1),
+            desirable_fit=round(desirable_fit, 1),
+            strengths=["Experiencia técnica relevante", "Buen ajuste cultural"] if profile.matched_skills else ["Experiencia relevante"],
+            gaps=["Necesita profundizar dominio específico"] if fit_percentage < 75 else [],
+            exclusionary_flags=[],
+            requirement_assessments=[
+                RequirementAssessment(
+                    requirement_id="default",
+                    requirement_name="Requisito general",
+                    mandatory=False,
+                    exclusionary=False,
+                    status="met",
+                    raw_score=1.0,
+                    max_score=1.0,
+                    weighted_score=1.0,
+                    evidence=[],
+                    gap_description="",
+                    confidence=1.0,
+                )
+            ],
+            confidence=0.85,
             details="Evaluación de ajuste basada en datos de perfil y ponderaciones.",
         )
         latency = elapsed_ms(start, current_time())
@@ -144,10 +183,18 @@ class RankingAgent:
             {
                 "candidate_id": candidate.candidate_id,
                 "name": candidate.name,
-                "score": candidate.fit_assessment.score if candidate.fit_assessment else 0.0,
+                "score": float(candidate.fit_assessment.fit_percentage if candidate.fit_assessment else 0.0),
+                "fit_percentage": float(candidate.fit_assessment.fit_percentage if candidate.fit_assessment else 0.0),
+                "mandatory_fit": float(candidate.fit_assessment.mandatory_fit if candidate.fit_assessment else 0.0),
+                "confidence": float(candidate.fit_assessment.confidence if candidate.fit_assessment else 0.0),
+                "recommendation": "advance" if not candidate.error else "review",
                 "error": candidate.error,
             }
-            for candidate in sorted(candidates, key=lambda item: item.fit_assessment.score if item.fit_assessment else 0.0, reverse=True)
+            for candidate in sorted(
+                candidates,
+                key=lambda item: float(item.fit_assessment.fit_percentage if item.fit_assessment else 0.0),
+                reverse=True,
+            )
         ]
         latency = elapsed_ms(start, current_time())
         tokens = 5
@@ -370,11 +417,11 @@ class FitAnalysisOrchestrator:
 
         if supervisor.status == "modified_and_approved" and supervisor.modifications:
             role.summary = supervisor.modifications.get("role_summary", role.summary)
+            note = supervisor.modifications.get("notes") or supervisor.modifications.get("methodological_warning", {}).get("reason") or "Se aplicaron modificaciones por supervisión.")
             modified_ranking = []
             for item in ranking:
                 item = dict(item)
-                if supervisor.modifications.get("notes"):
-                    item["note"] = supervisor.modifications["notes"]
+                item["note"] = note
                 modified_ranking.append(item)
             return modified_ranking, role
 
@@ -416,6 +463,16 @@ class FitAnalysisOrchestrator:
                 "role": role.model_dump(),
                 "ranking": ranking,
                 "summary": role.summary,
+                "candidate_profiles": [
+                    {
+                        **c.profile.model_dump(),
+                        "interview_questions": [q.model_dump() for q in c.interview_questions],
+                    }
+                    for c in processed_candidates
+                    if c.profile
+                ],
+                "fit_results": [c.model_dump() for c in processed_candidates],
+                "traces": [t.model_dump() for t in self.traces],
             }
             supervisor_result, tokens = await self.supervisor_agent.execute(supervisor_payload)
             self.total_tokens += tokens
@@ -435,6 +492,7 @@ class FitAnalysisOrchestrator:
                 errors=[error for error in self.errors],
             )
             self._persist_run(result)
+            result.errors = [error for error in self.errors]
             return result
         except Exception as exc:
             LOGGER.error("Error de orquestación: %s", safe_user_message(exc), extra={"agent": "Orchestrator"})
@@ -451,6 +509,7 @@ class FitAnalysisOrchestrator:
                 errors=[{"step": "Orchestrator", "error": safe_user_message(exc)}],
             )
             self._persist_run(result)
+            result.errors = [error for error in self.errors]
             return result
 
 

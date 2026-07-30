@@ -143,6 +143,67 @@ Ejemplo de ejecución local:
 uvicorn fit_analysis_orchestrator.api:app --host 0.0.0.0 --port 8000
 ```
 
+## Docker y Cloud Run
+
+Se agregó soporte para ejecutar el proyecto con Docker y desplegarlo en Google Cloud Run.
+
+### Construir la imagen Docker
+
+```bash
+docker build -t multiagentecv:latest .
+```
+
+### Ejecutar localmente con Docker
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e OPENAI_API_KEY=your_api_key_here \
+  -e OPENAI_EMBEDDING_MODEL=text-embedding-3-large \
+  -e DATABASE_URL=sqlite:///./fit_analysis.db \
+  -e CHROMA_PERSIST_DIRECTORY=./chroma \
+  -e CV_DIRECTORY=./cvs \
+  -e PORT=8080 \
+  multiagentecv:latest
+```
+
+### Desplegar a Cloud Run
+
+```bash
+gcloud run deploy multiagentecv \
+  --source . \
+  --region YOUR_REGION \
+  --platform managed \
+  --allow-unauthenticated \
+  --set-env-vars="OPENAI_API_KEY=your_api_key_here,OPENAI_EMBEDDING_MODEL=text-embedding-3-large,DATABASE_URL=sqlite:///./fit_analysis.db,CHROMA_PERSIST_DIRECTORY=./chroma,CV_DIRECTORY=./cvs,PORT=8080"
+```
+
+> En Cloud Run la persistencia local de SQLite y Chroma no es duradera entre reinicios. Para producción, use un servicio de base de datos gestionado y un almacenamiento persistente para Chroma.
+
+### Variables de entorno importantes
+
+- `OPENAI_API_KEY`
+- `OPENAI_EMBEDDING_MODEL`
+- `DATABASE_URL`
+- `CHROMA_PERSIST_DIRECTORY`
+- `CV_DIRECTORY`
+- `PORT`
+
+### Configuración de OpenAI
+
+- `OPENAI_API_KEY`: clave secreta para el API de OpenAI.
+- `OPENAI_EMBEDDING_MODEL`: modelo de embeddings, por ejemplo `text-embedding-3-large`.
+
+### Configuración SQL
+
+- `DATABASE_URL`: cadena de conexión SQLAlchemy.
+- El `.env.example` usa `sqlite:///./fit_analysis.db` por defecto.
+- En Cloud Run, SQLite se usa solo para pruebas locales; no se recomienda en producción.
+
+### Configuración Chroma
+
+- `CHROMA_PERSIST_DIRECTORY`: directorio local de persistencia para Chroma.
+- En Cloud Run, el almacenamiento local no es persistente entre despliegues.
+
 ## Salida esperada
 
 ```json

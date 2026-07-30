@@ -53,12 +53,20 @@ QUESTION_TEMPLATES = {
             "No menciona resultados concretos ni métricas.",
         ],
     ),
-    "communication": (
+    "communication_stakeholders": (
         "Cuéntame cómo te aseguraste de que tu equipo y los stakeholders entendieran los resultados técnicos de un proyecto.",
         "Confirmar la capacidad de comunicación efectiva con distintos públicos.",
         [
             "Describe solo carga de trabajo sin contexto de comunicación.",
             "No indica cómo adaptó el mensaje a distintos interlocutores.",
+        ],
+    ),
+    "communication_clarity": (
+        "Describe cómo te aseguras de que la comunicación técnica sea clara y efectiva para diferentes audiencias.",
+        "Evaluar claridad de comunicación y adaptación de mensaje.",
+        [
+            "Demasiado enfoque en jerga técnica sin explicar el impacto.",
+            "No menciona adaptación del mensaje según el público.",
         ],
     ),
     "experience": (
@@ -150,29 +158,63 @@ class InterviewQuestionAgent:
 
     def _find_missing_terms(self, requirements: List[str], profile_terms: List[str]) -> List[str]:
         missing: List[str] = []
+        term_set = {term.lower() for term in profile_terms}
         for requirement in requirements:
             normalized = requirement.lower()
-            if any(keyword in normalized for keyword in ["python", "sql", "comunicación", "comunicacion", "clientes", "stakeholders", "experiencia"]):
-                if not any(term in normalized for term in profile_terms):
-                    missing.append(requirement)
+            if "python" in normalized and "python" not in term_set:
+                missing.append(requirement)
+                continue
+            if "sql" in normalized and "sql" not in term_set:
+                missing.append(requirement)
+                continue
+            if "stakeholders" in normalized and "stakeholders" not in term_set:
+                missing.append(requirement)
+                continue
+            if any(keyword in normalized for keyword in ["comunicación", "comunicacion"]) and not any(keyword in term_set for keyword in ["comunicación", "comunicacion", "communication"]):
+                missing.append(requirement)
+                continue
+            if any(keyword in normalized for keyword in ["aws", "docker", "kubernetes", "gcp", "azure"]) and not any(keyword in term_set for keyword in ["aws", "docker", "kubernetes", "gcp", "azure"]):
+                missing.append(requirement)
+                continue
+            if any(keyword in normalized for keyword in ["experiencia", "years", "años", "experience"]) and not any(keyword in term_set for keyword in ["experiencia", "experience", "años", "years"]):
+                missing.append(requirement)
+                continue
         return missing
 
     def _rank_requirements(self, requirements: List[str], missing_requirements: List[str]) -> List[str]:
-        if missing_requirements:
-            ordered = missing_requirements + [req for req in requirements if req not in missing_requirements]
-        else:
-            ordered = requirements
-        return ordered[:5]
+        if not missing_requirements:
+            return requirements[:5]
+
+        def priority(req: str) -> int:
+            lower = req.lower()
+            if "python" in lower:
+                return 1
+            if "sql" in lower:
+                return 2
+            if "stakeholders" in lower:
+                return 3
+            if any(k in lower for k in ["comunicación", "comunicacion"]):
+                return 4
+            if any(k in lower for k in ["experiencia", "años", "experience"]):
+                return 5
+            return 6
+
+        ordered_missing = sorted(missing_requirements, key=priority)
+        remaining = [req for req in requirements if req not in missing_requirements]
+        return (ordered_missing + remaining)[:5]
 
     def _build_question(self, requirement: str, profile: CandidateProfile, role: RoleDescriptor, priority: int) -> InterviewQuestion:
         normalized = requirement.lower()
         if "python" in normalized or "sql" in normalized or "aws" in normalized or "docker" in normalized or "kubernetes" in normalized:
             template_key = "technical"
             gap_type = "technical_depth"
-        elif "comunicación" in normalized or "comunicacion" in normalized or "stakeholders" in normalized:
-            template_key = "communication"
+        elif "stakeholders" in normalized:
+            template_key = "communication_stakeholders"
             gap_type = "communication"
-        elif "experiencia" in normalized or "años" in normalized:
+        elif "comunicación" in normalized or "comunicacion" in normalized:
+            template_key = "communication_clarity"
+            gap_type = "communication"
+        elif "experiencia" in normalized or "años" in normalized or "experience" in normalized:
             template_key = "experience"
             gap_type = "experience_gap"
         elif "liderazgo" in normalized or "equipo" in normalized or "gestión" in normalized or "gestion" in normalized:
