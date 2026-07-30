@@ -21,6 +21,13 @@ from .models import (
     TraceEntry,
     WeightConfig,
 )
+from .repositories import (
+    AnalysisRepository,
+    CandidateResultRepository,
+    AgentTraceRepository,
+    SupervisorResultRepository,
+)
+from .db import SessionLocal
 from .interview_question_agent import InterviewQuestionAgent
 from .ranking_agent import RankingAgent
 from .supervisor_agent import SupervisorAgent
@@ -178,6 +185,12 @@ class FitAnalysisOrchestrator:
         self.agent_latencies: Dict[str, int] = {}
         self.semaphore = asyncio.Semaphore(self.max_concurrency)
 
+        self._db_session = SessionLocal()
+        self.analysis_repository = AnalysisRepository(self._db_session)
+        self.candidate_repository = CandidateResultRepository(self._db_session)
+        self.trace_repository = AgentTraceRepository(self._db_session)
+        self.supervisor_repository = SupervisorResultRepository(self._db_session)
+
     def _load_role_description(self) -> RoleDescriptor:
         if self.role_text is None:
             raise AgentError("Debe proveer texto del descriptivo del rol.")
@@ -220,6 +233,93 @@ class FitAnalysisOrchestrator:
                 )
             )
 
+    def _persist_run(self, result: FitAnalysisResult) -> None:
+        try:
+            with self._db_session.begin():
+                existing = self.analysis_repository.get(result.analysis_id)
+                if existing:
+                    self.analysis_repository.delete_children(result.analysis_id, commit=False)
+                    self._db_session.delete(existing)
+                    self._db_session.flush()
+
+                self.analysis_repository.create(
+                    {
+                        "analysis_id": result.analysis_id,
+                        "role_id": result.role.get("role_id"),
+                        "start_time": self.traces[0].start_time if self.traces else current_time(),
+                        "end_time": current_time(),
+                        "status": result.status,
+                        "candidates_analyzed": result.candidates_analyzed,
+                        "total_latency_ms": result.total_latency_ms,
+                        "total_tokens": result.total_tokens,
+                        "role_json": result.role,
+                        "ranking_json": result.ranking,
+                        "errors_json": result.errors,
+                        "supervisor_json": result.supervisor_result.model_dump(),
+                    },
+                    commit=False,
+                )
+
+                candidate_rank = {row["candidate_id"]: index + 1 for index, row in enumerate(result.ranking)}
+                for candidate in [c for c in result.ranking if c.get("candidate_id")]:
+                    candidate_id = candidate.get("candidate_id")
+                    self.candidate_repository.create(
+                        {
+                            "analysis_id": result.analysis_id,
+                            "candidate_id": candidate_id,
+                            "candidate_name": candidate.get("name"),
+                            "fit_percentage": float(candidate.get("score", 0.0) or 0.0),
+                            "rank": candidate_rank.get(candidate_id, 0),
+                            "recommendation": candidate.get("recommendation") or ("advance" if not candidate.get("error") else "review"),
+                            "confidence": float(candidate.get("confidence", 0.0) or 0.0),
+                            "result_json": candidate,
+                        },
+                        commit=False,
+                    )
+
+                for trace in result.traces:
+                    self.trace_repository.create(
+                        {
+                            "analysis_id": result.analysis_id,
+                            "agent_name": trace.agent,
+                            "start_time": trace.start_time,
+                            "end_time": trace.end_time,
+                            "latency_ms": trace.latency_ms,
+                            "tokens": 0,
+                            "status": trace.status,
+                            "error": trace.message,
+                        },
+                        commit=False,
+                    )
+
+                self.supervisor_repository.create(
+                    {
+                        "analysis_id": result.analysis_id,
+                        "decision": result.supervisor_result.status,
+                        "approved": result.supervisor_result.approved,
+                        "quality_score": result.supervisor_result.quality_score,
+                        "dimension_scores": result.supervisor_result.dimension_scores,
+                        "issues_json": result.supervisor_result.issues,
+                        "flags_json": result.supervisor_result.flags,
+                        "modifications_json": result.supervisor_result.modifications,
+                        "final_result": result.supervisor_result.final_result,
+                        "reason": result.supervisor_result.reason,
+                    },
+                    commit=False,
+                )
+        except Exception as exc:
+            message = safe_user_message(exc)
+            self.errors.append({"step": "Persistence", "error": message})
+            LOGGER.error(
+                "Error de persistencia SQL para analysis_id %s: %s",
+                result.analysis_id,
+                message,
+                extra={"agent": "Persistence", "analysis_id": result.analysis_id},
+            )
+            self._db_session.rollback()
+        finally:
+            self._db_session.close()
+
     async def _process_candidate(self, candidate: CandidateSource, role: RoleDescriptor) -> CandidateResult:
         candidate_result = CandidateResult(
             candidate_id=candidate.candidate_id,
@@ -256,10 +356,13 @@ class FitAnalysisOrchestrator:
                 candidate_result.error,
                 extra={"agent": "CandidateProcessing", "candidate_id": candidate.candidate_id},
             )
-        finally:
+        except Exception:
             end = current_time()
             candidate_result.latency_ms = elapsed_ms(start, end)
             return candidate_result
+        end = current_time()
+        candidate_result.latency_ms = elapsed_ms(start, end)
+        return candidate_result
 
     def _apply_supervisor(self, supervisor: SupervisorResult, ranking: List[Dict[str, Any]], role: RoleDescriptor) -> Tuple[List[Dict[str, Any]], RoleDescriptor]:
         if supervisor.status == "approved":
@@ -319,8 +422,7 @@ class FitAnalysisOrchestrator:
             ranking, role = self._apply_supervisor(supervisor_result, ranking, role)
 
             status = "completed" if supervisor_result.status != "rejected" else "rejected"
-            errors = [error for error in self.errors]
-            return FitAnalysisResult(
+            result = FitAnalysisResult(
                 analysis_id=self.run_id,
                 role=role.model_dump(),
                 candidates_analyzed=len(processed_candidates),
@@ -330,11 +432,13 @@ class FitAnalysisOrchestrator:
                 total_latency_ms=elapsed_ms(all_start, current_time()),
                 total_tokens=self.total_tokens,
                 status=status,
-                errors=errors,
+                errors=[error for error in self.errors],
             )
+            self._persist_run(result)
+            return result
         except Exception as exc:
             LOGGER.error("Error de orquestación: %s", safe_user_message(exc), extra={"agent": "Orchestrator"})
-            return FitAnalysisResult(
+            result = FitAnalysisResult(
                 analysis_id=self.run_id,
                 role={"description_text": self.role_text or "", "validated": False},
                 candidates_analyzed=0,
@@ -346,6 +450,8 @@ class FitAnalysisOrchestrator:
                 status="rejected",
                 errors=[{"step": "Orchestrator", "error": safe_user_message(exc)}],
             )
+            self._persist_run(result)
+            return result
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:

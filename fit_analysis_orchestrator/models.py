@@ -155,3 +155,35 @@ class CandidateSource(BaseModel):
     name: str
     tokens: int = 0
     latency_ms: int = 0
+
+
+class DocumentIngestionResult(BaseModel):
+    candidate_id: str
+    source_file: str
+    file_type: str
+    content: str
+    page_count: int
+    document_hash: str
+    metadata: Dict[str, Any]
+    status: str
+    error: Optional[str] = None
+
+
+class EmbeddingResult(BaseModel):
+    chunk_id: str
+    candidate_id: str
+    embedding: List[float]
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    status: str
+    error: Optional[str] = None
+
+
+class DocumentChunk(BaseModel):
+    chunk_id: str
+    candidate_id: str
+    content: str
+    source_file: str
+    page: Optional[int] = None
+    section: Optional[str] = None
+    chunk_index: int
+    metadata: Dict[str, Any] = Field(default_factory=dict)

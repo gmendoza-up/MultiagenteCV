@@ -5,10 +5,7 @@ from pathlib import Path
 
 import pytest
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from agents.fit_analysis_orchestrator.agent import FitAnalysisOrchestrator
+from fit_analysis_orchestrator.agent import FitAnalysisOrchestrator
 
 
 def create_dummy_cvs(tmp_path: Path, count: int = 3) -> Path:
