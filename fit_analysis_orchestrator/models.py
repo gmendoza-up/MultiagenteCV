@@ -60,16 +60,44 @@ class CandidateProfile(BaseModel):
     matched_skills: List[str] = Field(default_factory=list)
 
 
+class RequirementAssessment(BaseModel):
+    requirement_id: str
+    requirement_name: str
+    mandatory: bool
+    exclusionary: bool
+    status: str
+    raw_score: float
+    max_score: float
+    weighted_score: float
+    evidence: List[EvidenceDetail] = Field(default_factory=list)
+    gap_description: str
+    confidence: float = 0.0
+
+
 class FitAssessment(BaseModel):
-    score: float
+    candidate_id: Optional[str] = None
+    fit_percentage: float
+    fit_level: str
+    mandatory_fit: float
+    desirable_fit: float
     strengths: List[str] = Field(default_factory=list)
-    weaknesses: List[str] = Field(default_factory=list)
+    gaps: List[str] = Field(default_factory=list)
+    exclusionary_flags: List[str] = Field(default_factory=list)
+    requirement_assessments: List[RequirementAssessment] = Field(default_factory=list)
+    confidence: float = 0.0
     details: Optional[str] = None
 
 
 class InterviewQuestion(BaseModel):
     question: str
-    focus: str
+    validates_requirement_id: str
+    validates_requirement: str
+    gap_type: str
+    rationale: str
+    expected_positive_evidence: str
+    expected_warning_signals: List[str] = Field(default_factory=list)
+    potential_fit_increase: float
+    priority: int
 
 
 class CandidateResult(BaseModel):
@@ -79,6 +107,7 @@ class CandidateResult(BaseModel):
     profile: Optional[CandidateProfile] = None
     fit_assessment: Optional[FitAssessment] = None
     interview_questions: List[InterviewQuestion] = Field(default_factory=list)
+    retrieval_score: float = 0.0
     error: Optional[str] = None
     tokens: int = 0
     latency_ms: int = 0
@@ -86,8 +115,15 @@ class CandidateResult(BaseModel):
 
 class SupervisorResult(BaseModel):
     status: str
-    reason: Optional[str] = None
+    decision: Optional[str] = None
+    approved: Optional[bool] = None
+    quality_score: Optional[float] = None
+    dimension_scores: Optional[Dict[str, float]] = None
+    issues: Optional[List[str]] = None
+    flags: Optional[List[str]] = None
     modifications: Optional[Dict[str, Any]] = None
+    final_result: Optional[Dict[str, Any]] = None
+    reason: Optional[str] = None
 
 
 class TraceEntry(BaseModel):

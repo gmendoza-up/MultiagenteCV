@@ -16,12 +16,14 @@ from .models import (
     CandidateSource,
     FitAnalysisResult,
     FitAssessment,
-    InterviewQuestion,
     RoleDescriptor,
     SupervisorResult,
     TraceEntry,
     WeightConfig,
 )
+from .interview_question_agent import InterviewQuestionAgent
+from .ranking_agent import RankingAgent
+from .supervisor_agent import SupervisorAgent
 
 LOGGER = logging.getLogger("FitAnalysisOrchestrator")
 
@@ -127,19 +129,6 @@ class FitAssessmentAgent:
         return assessment, tokens
 
 
-class InterviewQuestionAgent:
-    async def execute(self, profile: CandidateProfile, role: RoleDescriptor) -> Tuple[List[InterviewQuestion], int]:
-        start = current_time()
-        await asyncio.sleep(0)
-        questions = [
-            InterviewQuestion(question="Describe un proyecto donde usaste Python para resolver un problema complejo.", focus="Técnico"),
-            InterviewQuestion(question="¿Cómo priorizas tu aprendizaje cuando aparece una nueva tecnología en el equipo?", focus="Adaptabilidad"),
-        ]
-        latency = elapsed_ms(start, current_time())
-        tokens = 7
-        return questions, tokens
-
-
 class RankingAgent:
     async def execute(self, candidates: List[CandidateResult]) -> Tuple[List[Dict[str, Any]], int]:
         start = current_time()
@@ -156,34 +145,6 @@ class RankingAgent:
         latency = elapsed_ms(start, current_time())
         tokens = 5
         return ranking, tokens
-
-
-class SupervisorAgent:
-    async def execute(self, payload: Dict[str, Any]) -> Tuple[SupervisorResult, int]:
-        start = current_time()
-        await asyncio.sleep(0)
-        summary = payload["role"].get("summary", "") or payload["role"].get("description_text", "")
-        key = summary.lower()
-        if "rechazar" in key:
-            result = SupervisorResult(
-                status="rejected",
-                reason="El fiscalizador determinó que el rol no cumple los criterios mínimos.",
-                modifications=None,
-            )
-        elif "revisar" in key or "modificar" in key:
-            result = SupervisorResult(
-                status="modified_and_approved",
-                reason="Se aplicaron ajustes menores a la clasificación y resumen de rol.",
-                modifications={
-                    "role_summary": f"{summary[:120]} [revisado]",
-                    "notes": "Se ajustó el orden de prioridad de candidatos según elementos clave.",
-                },
-            )
-        else:
-            result = SupervisorResult(status="approved", reason="Análisis aprobado sin cambios.")
-        latency = elapsed_ms(start, current_time())
-        tokens = 6
-        return result, tokens
 
 
 class FitAnalysisOrchestrator:
