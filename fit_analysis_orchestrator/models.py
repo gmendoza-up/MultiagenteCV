@@ -19,8 +19,43 @@ class RoleDescriptor(BaseModel):
     validated: bool = False
 
 
+class EvidenceDetail(BaseModel):
+    value: str
+    evidence_text: str
+    source_file: str
+    page: int = 0
+    section: str = ""
+    evidence_type: str
+    confidence: float = 0.0
+
+
+class ExperienceEntry(BaseModel):
+    title: str
+    company: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    duration_years: Optional[float] = None
+    responsibilities: List[EvidenceDetail] = Field(default_factory=list)
+    achievements: List[EvidenceDetail] = Field(default_factory=list)
+    technologies: List[EvidenceDetail] = Field(default_factory=list)
+    evidence: List[EvidenceDetail] = Field(default_factory=list)
+
+
 class CandidateProfile(BaseModel):
+    candidate_id: Optional[str] = None
+    candidate_name: Optional[str] = None
     summary: str
+    professional_summary: Optional[str] = None
+    experiences: List[ExperienceEntry] = Field(default_factory=list)
+    skills: List[EvidenceDetail] = Field(default_factory=list)
+    technologies: List[EvidenceDetail] = Field(default_factory=list)
+    education: List[EvidenceDetail] = Field(default_factory=list)
+    certifications: List[EvidenceDetail] = Field(default_factory=list)
+    languages: List[EvidenceDetail] = Field(default_factory=list)
+    total_years_experience: float = 0.0
+    domain_experience: List[EvidenceDetail] = Field(default_factory=list)
+    evidence: List[EvidenceDetail] = Field(default_factory=list)
+    confidence: float = 0.0
     experience_years: Optional[int] = None
     matched_skills: List[str] = Field(default_factory=list)
 
