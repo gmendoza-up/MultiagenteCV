@@ -1,0 +1,2 @@
+Nombre: Juan Pérez
+Experiencia: 6 años como Ingeniero de Datos trabajando con Python, SQL y pipelines de ETL.

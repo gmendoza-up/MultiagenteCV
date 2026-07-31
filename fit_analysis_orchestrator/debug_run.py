@@ -1,8 +1,8 @@
-﻿import asyncio
+import asyncio
 import sys
 from pathlib import Path
-sys.path.insert(0, r'C:\Users\KPaz Consultores SpA\Taller 6')
-from agents.fit_analysis_orchestrator.agent import FitAnalysisOrchestrator
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from fit_analysis_orchestrator.agent import FitAnalysisOrchestrator
 
 tmp = Path('tmp_cv_test')
 tmp.mkdir(exist_ok=True)

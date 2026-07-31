@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Project-specific databases / state files
+fit_analysis.db
+*.db-journal
+fit_analysis.db
+fit_analysis_orchestrator/__pycache__/__init__.cpython-314.pyc
+fit_analysis_orchestrator/__pycache__/agent.cpython-314.pyc
+fit_analysis_orchestrator/__pycache__/db.cpython-314.pyc
+fit_analysis_orchestrator/__pycache__/interview_question_agent.cpython-314.pyc
+fit_analysis_orchestrator/__pycache__/models.cpython-314.pyc
+fit_analysis_orchestrator/__pycache__/models_sql.cpython-314.pyc
+fit_analysis_orchestrator/__pycache__/ranking_agent.cpython-314.pyc
+fit_analysis_orchestrator/__pycache__/repositories.cpython-314.pyc
+fit_analysis_orchestrator/__pycache__/supervisor_agent.cpython-314.pyc

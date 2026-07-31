@@ -417,7 +417,7 @@ class FitAnalysisOrchestrator:
 
         if supervisor.status == "modified_and_approved" and supervisor.modifications:
             role.summary = supervisor.modifications.get("role_summary", role.summary)
-            note = supervisor.modifications.get("notes") or supervisor.modifications.get("methodological_warning", {}).get("reason") or "Se aplicaron modificaciones por supervisión.")
+            note = supervisor.modifications.get("notes") or supervisor.modifications.get("methodological_warning", {}).get("reason") or "Se aplicaron modificaciones por supervisión."
             modified_ranking = []
             for item in ranking:
                 item = dict(item)
