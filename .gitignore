@@ -27,3 +27,4 @@ fit_analysis_orchestrator/__pycache__/models_sql.cpython-314.pyc
 fit_analysis_orchestrator/__pycache__/ranking_agent.cpython-314.pyc
 fit_analysis_orchestrator/__pycache__/repositories.cpython-314.pyc
 fit_analysis_orchestrator/__pycache__/supervisor_agent.cpython-314.pyc
+*.pyc

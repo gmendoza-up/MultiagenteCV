@@ -35,6 +35,33 @@ El archivo cvs/juan_perez.txt, es un ejemplo.
 python -m fit_analysis_orchestrator.agent --cv-dir ./cvs --role-text "Se busca Ingeniero de Datos con experiencia en Python y SQL" --max-candidates 3
 ```
 
+### Usar Docker para funcionalidad basica WEB
+```bash
+docker build -t multiagentecv:latest .
+
+docker run --rm -p 8080:8080 --env-file .env multiagentecv:latest
+
+docker run --rm -p 8080:8080 -e OPENAI_API_KEY="tu_api_key_aquí" multiagentecv:latest
+```
+
+```
+http://localhost:8080/docs
+Desde ahí puedes interactuar con el sistema:
+
+Indexar los CVs de la carpeta:
+Busca la sección POST /index-cvs.
+Haz clic en "Try it out" (Pruébalo) y luego en "Execute" (Ejecutar) para procesar e indexar tus CVs.
+Ejecutar el Análisis Multiagente:
+Busca la sección POST /analyze.
+Haz clic en "Try it out".
+Modifica el cuerpo del JSON con la descripción del rol que desees buscar, por ejemplo:
+json
+{
+  "role_description": "Se busca Ingeniero de Datos con experiencia en Python y SQL",
+  "top_k_candidates": 3
+}
+Haz clic en "Execute" para ver los resultados de compatibilidad procesados por los agentes y aprobados por el supervisor.
+```
 
 
 Flujo de información Agentes, workers coordinados por el **Orquestador (`FitAnalysisOrchestrator`)**:

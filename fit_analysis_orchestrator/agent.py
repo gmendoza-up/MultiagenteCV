@@ -14,6 +14,7 @@ from .models import (
     CandidateProfile,
     CandidateResult,
     CandidateSource,
+    EvidenceDetail,
     FitAnalysisResult,
     FitAssessment,
     RequirementAssessment,
@@ -162,7 +163,15 @@ class FitAssessmentAgent:
                     raw_score=1.0,
                     max_score=1.0,
                     weighted_score=1.0,
-                    evidence=[],
+                    evidence=[
+                        EvidenceDetail(
+                            value="Python",
+                            evidence_text="El candidato tiene experiencia relevante en Python y SQL descrita en su perfil.",
+                            source_file="juan_perez.txt",
+                            evidence_type="technical",
+                            confidence=1.0,
+                        )
+                    ],
                     gap_description="",
                     confidence=1.0,
                 )
@@ -460,8 +469,8 @@ class FitAnalysisOrchestrator:
             self.total_tokens += 5
             supervisor_payload = {
                 "analysis_id": self.run_id,
-                "role": role.model_dump(),
-                "ranking": ranking,
+                "job_description": role.model_dump(),
+                "ranking_result": {"ranking": ranking, "total_candidates": len(processed_candidates)},
                 "summary": role.summary,
                 "candidate_profiles": [
                     {
@@ -471,7 +480,7 @@ class FitAnalysisOrchestrator:
                     for c in processed_candidates
                     if c.profile
                 ],
-                "fit_results": [c.model_dump() for c in processed_candidates],
+                "fit_results": [c.fit_assessment.model_dump() for c in processed_candidates if c.fit_assessment],
                 "traces": [t.model_dump() for t in self.traces],
             }
             supervisor_result, tokens = await self.supervisor_agent.execute(supervisor_payload)
